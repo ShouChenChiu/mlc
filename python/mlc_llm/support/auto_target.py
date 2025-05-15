@@ -42,7 +42,8 @@ def detect_target_and_host(target_hint: str, host_hint: str = "auto") -> Tuple[T
     """
     target, build_func = _detect_target_gpu(target_hint)
     if target.host is None:
-        target = Target(target, host=_detect_target_host(host_hint))
+        if target_hint != "cpu":
+            target = Target(target, host=_detect_target_host(host_hint))
     if target.kind.name == "cuda":
         # Enable thrust for CUDA
         target_dict = dict(target.export())
@@ -65,6 +66,23 @@ def _detect_target_gpu(hint: str) -> Tuple[Target, BuildFunc]:
     if hint in ["iphone", "android", "webgpu", "mali", "opencl"]:
         hint += ":generic"
     if hint == "auto" or hint in AUTO_DETECT_DEVICES:
+        if hint == "cpu" and "CROSS_COMPILATION" in os.environ:
+            target = Target({
+                            "kind": "llvm",
+                            "mtriple": os.environ["CROSS_COMPILATION"],
+                            "mattr": ["+m", "+a", "+f", "+d", "+c", "+v"],
+                            "mabi": "lp64d",
+                            "vector-width": 256 
+
+            })
+            device_str = os.environ["CROSS_COMPILATION"]
+            logger.info(
+                '%s configuration of target device "%s": %s',
+                FOUND,
+                bold(device_str),
+                target.export(),
+            )
+            return target, _build_default()
         target: Optional[Target] = None
         device = detect_device(hint)
         if device is not None:
